@@ -2518,8 +2518,8 @@ double predict(const model *model_, const feature_node *x)
 
 double predict_probability(const struct model *model_, const struct feature_node *x, double* prob_estimates)
 {
-	if(check_probability_model(model_))
-	{
+//	if(check_probability_model(model_))
+//	{
 		int i;
 		int nr_class=model_->nr_class;
 		int nr_w;
@@ -2545,9 +2545,9 @@ double predict_probability(const struct model *model_, const struct feature_node
 		}
 
 		return label;
-	}
-	else
-		return 0;
+//	}
+//	else
+//		return 0;
 }
 
 static const char *solver_type_table[]=

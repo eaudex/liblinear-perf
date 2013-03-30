@@ -59,6 +59,7 @@ struct problem prob;
 int flag_cross_validation;
 int nr_fold;
 double bias;
+long nnz;
 
 
 int main(int argc, char *argv[])
@@ -77,128 +78,184 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-    //XXX
-	int i;
-	int * fold_start = new int[nr_fold+1];
-	int l = prob.l;
-	int * perm = new int[l];
-	dvec_t pred_values;
-	dvec_t prob_values;
-	dvec_t true_values;
+    // select the best K
+    int startK = 1;
+    int endK = 4*prob.l/nr_fold;
 
-	for(i=0;i<l;i++) perm[i]=i;
-	for(i=0;i<l;i++)
-	{
-		int j = i+rand()%(l-i);
-		swap(perm[i],perm[j]);
-	}
-	for(i=0;i<=nr_fold;i++)
-		fold_start[i]=i*l/nr_fold;
+    double bestC = -INF;
+    double bestCV = -INF;
+    dvec_t pred_values(prob.l,0.0);
+    dvec_t prob_values(prob.l,0.0);
+    dvec_t true_values(prob.l,0.0);
 
-	for(i=0;i<nr_fold;i++)
-	{
-		int                begin   = fold_start[i];
-		int                end     = fold_start[i+1];
-		int                j,k;
-		problem subprob;
+    for(int K=startK; K<endK; K+=10) {
+        param.C = K;
+        cout<< "K " <<  K << ", ";
 
-		subprob.n = prob.n;
-		subprob.bias = prob.bias;
-		subprob.l = l-(end-begin);
-		subprob.x = new feature_node*[subprob.l];
-		subprob.y = new double[subprob.l];
+        //XXX cross validation
+        int i;
+        int * fold_start = new int[nr_fold+1];
+        int l = prob.l;
+        int * perm = new int[l];
 
-		k=0;
-		for(j=0;j<begin;j++)
-		{
-			subprob.x[k] = prob.x[perm[j]];
-			subprob.y[k] = prob.y[perm[j]];
-			++k;
-		}
-		for(j=end;j<l;j++)
-		{
-			subprob.x[k] = prob.x[perm[j]];
-			subprob.y[k] = prob.y[perm[j]];
-			++k;
-		}
-
-		pred_values.resize(end);
-		prob_values.resize(end);
-		true_values.resize(end);
-
-		for(j=begin; j<end; ++j) {
-			pred_values[j] = (double)knn_predict(&subprob, &param, prob.x[perm[j]], &prob_values[j]);
-			true_values[j] = prob.y[perm[j]];
-		}
-	
-		delete [] subprob.x;
-		delete [] subprob.y;
-	}
-	delete [] perm;
-	delete [] fold_start;
-
-
-    //XXX
-    int correct = 0;
-    int total = prob.l;
-    double logloss = 0.0;
-
-    for(int i=0; i<total; ++i) {
-        if(true_values[i] > 0) {
-            if(pred_values[i] > 0) {
-                ++correct;
-                logloss += log(prob_values[i]+1e-6);
-            }
-            else
-                logloss += log(1-prob_values[i]+1e-6);
+        for(i=0;i<l;i++) perm[i]=i;
+        for(i=0;i<l;i++)
+        {
+            int j = i+rand()%(l-i);
+            swap(perm[i],perm[j]);
         }
-        else {
-            if(pred_values[i] <= 0) {
-                correct++;
-                logloss += log(prob_values[i]+1e-6);
+        for(i=0;i<=nr_fold;i++)
+            fold_start[i]=i*l/nr_fold;
+
+        for(i=0;i<nr_fold;i++)
+        {
+            int                begin   = fold_start[i];
+            int                end     = fold_start[i+1];
+            int                j,k;
+            problem subprob;
+
+            subprob.n = prob.n;
+            subprob.bias = prob.bias;
+            subprob.l = l-(end-begin);
+            subprob.x = new feature_node*[subprob.l];
+            subprob.y = new double[subprob.l];
+
+            k=0;
+            for(j=0;j<begin;j++)
+            {
+                subprob.x[k] = prob.x[perm[j]];
+                subprob.y[k] = prob.y[perm[j]];
+                ++k;
             }
-            else
-                logloss += log(1-prob_values[i]+1e-6);
+            for(j=end;j<l;j++)
+            {
+                subprob.x[k] = prob.x[perm[j]];
+                subprob.y[k] = prob.y[perm[j]];
+                ++k;
+            }
+
+            for(j=begin; j<end; ++j) {
+                pred_values[j] = (double)knn_predict(&subprob, &param, prob.x[perm[j]], &prob_values[j]);
+                true_values[j] = prob.y[perm[j]];
+            }
+        
+            delete [] subprob.x;
+            delete [] subprob.y;
+        }
+        delete [] perm;
+        delete [] fold_start;
+
+        //XXX
+        int correct = 0;
+        int total = prob.l;
+        double logloss = 0.0;
+
+        for(int i=0; i<total; ++i) {
+            if(true_values[i] > 0) {
+                if(pred_values[i] > 0) {
+                    ++correct;
+                    logloss += log(prob_values[i]+1e-6);
+                }
+                else
+                    logloss += log(1-prob_values[i]+1e-6);
+            }
+            else {
+                if(pred_values[i] <= 0) {
+                    correct++;
+                    logloss += log(prob_values[i]+1e-6);
+                }
+                else
+                    logloss += log(1-prob_values[i]+1e-6);
+            }
+        }
+        logloss /= total;
+
+        cout<< "Cross validation logloss " << logloss << ", acc " << (double)correct/total <<endl;
+
+        if(logloss > bestCV) {
+            bestC = K;
+            bestCV = logloss;
         }
     }
+    std::cout<< "Best cross validation " << bestCV << " at C " << bestC <<std::endl;
+    param.C = bestC;
 
-    cout<< "Cross validation " << logloss/total <<endl;
-    cout<< "Cross validation " << (double)correct/total <<endl;
 
-
-    /*
-	if(flag_cross_validation)
+	FILE * test_input = fopen(model_file_name, "r");
+	if(test_input == NULL)
 	{
-		//do_cross_validation();
-        if(param.solver_type == L2R_L2LOSS_SVR ||
-           param.solver_type == L2R_L1LOSS_SVR_DUAL ||
-           param.solver_type == L2R_L2LOSS_SVR_DUAL)
-        {
-            double cv = regression_cross_validation(&prob, &param, nr_fold);
-            printf("Cross validation = #%g#\n", cv);
-        }
-        else {
-            double cv =  binary_class_cross_validation(&prob, &param, nr_fold);
-            printf("Cross validation = #%g#\n", cv);
-        }
+		fprintf(stderr,"can't open test input file %s\n", model_file_name);
+		exit(1);
 	}
-	else
+
+    //XXX predict
+    int total = 0;
+    int correct = 0;
+    int max_nr_attr = (int)nnz/prob.l;
+    feature_node * x = Malloc(feature_node, max_nr_attr);
+	while(readline(test_input) != NULL)
 	{
-		model_=train(&prob, &param);
-		if(save_model(model_file_name, model_))
+		int i = 0;
+		double target_label, predict_label;
+		char *idx, *val, *label, *endptr;
+		int inst_max_index = 0; // strtol gives 0 if wrong format
+
+		label = strtok(line," \t\n");
+		if(label == NULL) // empty line
+			exit_input_error(total+1);
+
+		target_label = strtod(label,&endptr);
+		if(endptr == label || *endptr != '\0')
+			exit_input_error(total+1);
+
+		while(1)
 		{
-			fprintf(stderr,"can't save model to file %s\n",model_file_name);
-			exit(1);
+			if(i>=max_nr_attr-2)	// need one more for index = -1
+			{
+				max_nr_attr *= 2;
+				x = (struct feature_node *) realloc(x,max_nr_attr*sizeof(struct feature_node));
+			}
+
+			idx = strtok(NULL,":");
+			val = strtok(NULL," \t");
+
+			if(val == NULL)
+				break;
+			errno = 0;
+			x[i].index = (int) strtol(idx,&endptr,10);
+			if(endptr == idx || errno != 0 || *endptr != '\0' || x[i].index <= inst_max_index)
+				exit_input_error(total+1);
+			else
+				inst_max_index = x[i].index;
+
+			errno = 0;
+			x[i].value = strtod(val,&endptr);
+			if(endptr == val || errno != 0 || (*endptr != '\0' && !isspace(*endptr)))
+				exit_input_error(total+1);
+
+			// feature indices larger than those in training are not used
+			if(x[i].index <= prob.n)
+				++i;
 		}
-		free_and_destroy_model(&model_);
+		x[i].index = -1;
+
+        double prob_est;
+        predict_label = (double)knn_predict(&prob, &param, x, &prob_est);
+        cout<< predict_label <<endl;
+
+        ++total;
+		if(predict_label == target_label)
+			++correct;
 	}
-    */
+    cout<< (double)correct/total << " (" << correct << "/" << total << ")" <<endl;
+    fclose(test_input);
 
 	destroy_param(&param);
 	free(prob.y);
 	free(prob.x);
 	free(x_space);
 	free(line);
+	free(x);
 
 	return EXIT_SUCCESS;
 }
@@ -369,6 +426,9 @@ void read_problem(const char *filename)
 	prob.y = Malloc(double,prob.l);
 	prob.x = Malloc(struct feature_node *,prob.l);
 	x_space = Malloc(struct feature_node,elements+prob.l);
+
+    //XXX
+    nnz = elements+prob.l;
 
 	max_index = 0;
 	j=0;

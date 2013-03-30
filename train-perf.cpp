@@ -1,15 +1,13 @@
-#include <stdio.h>
-#include <math.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cmath>
+#include <cstring>
 #include <ctype.h>
 #include <errno.h>
 #include "linear.h"
 #include "eval.h"
-#define Malloc(type,n) (type *)malloc((n)*sizeof(type))
-#define INF HUGE_VAL
+#include "common.h"
 
-void print_null(const char *s) {}
 
 void exit_with_help()
 {
@@ -86,6 +84,7 @@ void parse_command_line(int argc, char **argv, char *input_file_name, char *mode
 void read_problem(const char *filename);
 void do_cross_validation();
 
+
 struct feature_node *x_space;
 struct parameter param;
 struct problem prob;
@@ -118,11 +117,11 @@ int main(int argc, char **argv)
            param.solver_type == L2R_L2LOSS_SVR_DUAL)
         {
             double cv = regression_cross_validation(&prob, &param, nr_fold);
-            printf("Cross Validation = %g\n", cv);
+            printf("Cross validation = #%g#\n", cv);
         }
         else {
             double cv =  binary_class_cross_validation(&prob, &param, nr_fold);
-            printf("Cross Validation = %g%%\n", 100.0*cv);
+            printf("Cross validation = #%g#\n", cv);
         }
 	}
 	else

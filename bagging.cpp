@@ -1,18 +1,14 @@
-#include <stdio.h>
+#include <cstdio>
+#include <cstdlib>
 #include <cmath>
-#include <stdlib.h>
-#include <string.h>
+#include <cstring>
 #include <ctype.h>
 #include <errno.h>
 #include <iostream>
 #include <algorithm>
 #include "linear.h"
 #include "eval.h"
-#define Malloc(type,n) (type *)malloc((n)*sizeof(type))
-#define INF HUGE_VAL
-
-
-void print_null(const char *s) {}
+#include "common.h"
 
 void exit_with_help()
 {
@@ -120,7 +116,7 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-    //bagging
+    //bagging: bootstrap aggregating
     int base_solvers[] = {L2R_LR, L2R_L2LOSS_SVC, L1R_LR, L1R_L2LOSS_SVC};
     int num_base_solvers = (int)sizeof(base_solvers)/sizeof(base_solvers[0]);
 
@@ -136,9 +132,14 @@ int main(int argc, char **argv)
 
         std::cout<< "Current base solver " << solver_names[base_solvers[i]] <<std::endl;
 
-        std::cout<< "Randomly draw samples as sub-problem" <<std::endl;
+        std::cout<< "Bootstrap sample as sub-problem" <<std::endl;
         int l = (int)prob.l;        //total # training instances
         int subl = (int)(0.6*l);    //# training instances in the subset
+        int indices[subl];
+        for(int i=0; i<subl; ++i) {
+            indices[i] = rand()%l;
+        }
+        /*
         int indices[l];
         for(int i=0; i<l; ++i) {
             indices[i] = i;
@@ -147,6 +148,7 @@ int main(int argc, char **argv)
             int j = i + rand()%(l-i);
             std::swap(indices[i],indices[j]);
         }
+        */
 
         problem subprob;
         subprob.n = prob.n;
@@ -194,6 +196,11 @@ int main(int argc, char **argv)
 			fprintf(stderr,"can't save model to file %s\n",model_file_name);
 			exit(1);
 		}
+
+//        double dec_value;
+//        feature_node * xt;
+//        vectorize(line, xt);
+//        int pred_label = predict_values(model_, xt, &dec_value);
 
 		free_and_destroy_model(&model_);
 	    destroy_param(&subparam);
